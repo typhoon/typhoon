@@ -1,0 +1,58 @@
+#                                               -*- Autoconf -*-
+# Process this file with autoconf to produce a configure script.
+
+AC_PREREQ(2.61)
+AC_INIT(FULL-PACKAGE-NAME, VERSION, BUG-REPORT-ADDRESS)
+AC_CONFIG_SRCDIR([indexer.h])
+AC_CONFIG_HEADER([config.h])
+
+# Checks for programs.
+AC_PROG_CXX
+AC_PROG_CC
+AC_PROG_INSTALL
+AC_PROG_CPP
+
+# Checks for header files.
+AC_HEADER_DIRENT
+AC_HEADER_STDC
+AC_HEADER_SYS_WAIT
+AC_CHECK_HEADERS([arpa/inet.h fcntl.h netdb.h netinet/in.h stdlib.h string.h sys/file.h sys/socket.h unistd.h])
+
+# Checks for typedefs, structures, and compiler characteristics.
+AC_HEADER_STDBOOL
+AC_C_CONST
+AC_C_INLINE
+AC_TYPE_PID_T
+AC_TYPE_SIZE_T
+AC_HEADER_TIME
+AC_STRUCT_TM
+
+# Checks for library functions.
+AC_FUNC_CLOSEDIR_VOID
+AC_FUNC_FORK
+AC_FUNC_MALLOC
+AC_FUNC_MMAP
+AC_FUNC_SELECT_ARGTYPES
+AC_FUNC_STAT
+AC_CHECK_FUNCS([getcwd getpagesize memmove memset mkdir munmap select socket])
+
+
+AC_ARG_WITH(
+  charset,
+  [  --with-charset=utf8 or euc       use utf8 or euc ],
+  [WITH_CHARSET="$withval"],
+  [WITH_CHARSET="utf8"]
+)
+
+if test "$WITH_CHARSET" = "euc"
+then
+  AC_DEFINE(CHARSET_JA_JP_EUC)
+else
+  AC_DEFINE(CHARSET_JA_JP_UTF8)
+fi
+
+
+
+AC_CONFIG_FILES([Makefile])
+AC_CONFIG_SUBDIRS([libjson])
+AC_OUTPUT

@@ -1,0 +1,54 @@
+CPP=@CXX@
+CPPFLAGS = -O3 -Wall -s
+INSTALL    = @prefix@
+INSTALLBIN = @prefix@
+DEFS=@DEFS@
+
+BASEDIR=/usr
+LOCALBASEDIR=/usr/local
+
+LIBS := \
+-ljson\
+-lmecab\
+
+SUBDIRS := \
+libjson\
+
+
+COMMON_OBJS =   common.o exception.o buffer.o app_config.o charset.o server.o file_access.o shared_memory_access.o phrase_data_controller.o \
+                phrase_controller.o document_controller.o document_data_controller.o regular_index_controller.o \
+                reverse_index_controller.o indexer.o data_controller.o morph_controller.o searcher.o
+
+
+TYPHOON_OBJS = $(COMMON_OBJS) main.o
+CHECKER_OBJS  = $(COMMON_OBJS) checker.o
+
+CHECKER       = checker
+TYPHOON       = typhoon
+
+all: $(TYPHOON) $(CHECKER)
+
+$(TYPHOON): submake $(TYPHOON_OBJS)
+	$(CPP) $(CPPFLAGS) $(DEFS) -L$(SUBDIRS) -L$(BASEDIR)/lib -L$(LOCALBASEDIR)/lib -o $@ $(TYPHOON_OBJS) $(LIBS)
+
+$(CHECKER): submake $(CHECKER_OBJS)
+	$(CPP) $(CPPFLAGS) $(DEFS) -L$(SUBDIRS) -L$(BASEDIR)/lib -L$(LOCALBASEDIR)/lib -o $@ $(CHECKER_OBJS) $(LIBS)
+
+%.o: %.cc
+	$(CPP) $(CPPFLAGS) $(DEFS) -L$(SUBDIRS) -I$(SUBDIRS) -I$(BASEDIR)/include -I$(LOCALBASEDIR)/include -c -o $@ $<
+
+submake:
+	for d in $(SUBDIRS); do cd $$d ; $(MAKE) ; cp *.a ../ ; cd .. ; done
+
+clean:
+	for d in $(SUBDIRS); do cd $$d ; $(MAKE) clean; cd .. ; done
+	rm -f *.o *.a
+	rm -f $(TYPHOON) $(CHECKER)
+
+install:
+	for d in $(SUBDIRS); do cd $$d ; $(MAKE) install; cd .. ; done
+	mkdir -p $(INSTALL)/typhoon
+	mkdir -p $(INSTALL)/typhoon/log
+	mkdir -p $(INSTALL)/typhoon/data
+	cp $(SEARCHER) $(INSTALL)/typhoon
+	cp $(INDEXER) $(INSTALL)/typhoon
