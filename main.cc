@@ -41,7 +41,7 @@ bool get_options(int argc, char* const argv[]) {
   // option setting
   char optchar;
   opterr = 0;
-  while((optchar=getopt(argc, argv, "dD:L:p:P::F:o:l:w:a:")) != -1) {
+  while((optchar=getopt(argc, argv, "dD:L:p:P::F:o:l:w:a:v")) != -1) {
     if(optchar == 'd') {
       cfg.daemon = true;
       if(cfg.log_file == "") cfg.log_file = std::string(path_buf) + "/log/typhoon.log";
@@ -57,6 +57,10 @@ bool get_options(int argc, char* const argv[]) {
     else if(optchar == 'l') {cfg.max_limit  = (unsigned int)atoi(optarg);}
     else if(optchar == 'w') {cfg.max_words  = (unsigned int)atoi(optarg);}
     else if(optchar == 'F') {cfg.data_file = std::string(optarg);}
+    else if(optchar == 'v') {
+      std::cout << "Typhoon version 0.1\n";
+      exit(0);
+    }
     else {
       return false;
     }

@@ -2,6 +2,8 @@
 
 .SUFFIXES : .c .o .lo
 
+CCFLAGS=-fPIC -fpic -Wall -O2
+
 LIBSRC=json_value.cc json_import.cc json_export.cc json_exception.cc
 BINSRC=jsontest.cc
 LIBOBJ=$(LIBSRC:%.cc=%.o)
@@ -13,26 +15,32 @@ LIBTARGET=libjson
 VERSION=1.0
 
 CC=@CXX@
-INSTALL=@prefix@
+INSTALL=@exec_prefix@
+SYSTEM=@SYSTEM@
+
 
 $(LIBTARGET) : $(LIBTARGET).so.$(VERSION) $(LIBTARGET).a
 $(LIBTARGET).so.$(VERSION) : $(SHAREDOBJ)
-	$(CC) -shared -Wl,-soname,$(LIBTARGET).so.$(VERSION) -o $(LIBTARGET).so.$(VERSION) $(SHAREDOBJ)
+	if test "$(SYSTEM)" = "linux"; then \
+	  $(CC) -shared -Wl,-soname,$(LIBTARGET).so.$(VERSION) -o $(LIBTARGET).so.$(VERSION) $(SHAREDOBJ); \
+	else \
+	  $(CC) -dynamiclib -o $(LIBTARGET).dylib -compatibility_version 1 -current_version 1 $(SHAREDOBJ); \
+	fi
 $(LIBTARGET).a : $(LIBOBJ)
 	ar r $(LIBTARGET).a $(LIBOBJ)
 	ranlib $(LIBTARGET).a
 json_value.lo : json_value.cc
-	$(CC) -fPIC -Wall -c -o $@ $?
+	$(CC) $(CCFLAGS) -c -o $@ $?
 json_import.lo : json_import.cc
-	$(CC) -fPIC -Wall -c -o $@ $?
+	$(CC) $(CCFLAGS) -c -o $@ $?
 json_export.lo : json_export.cc
-	$(CC) -fPIC -Wall -c -o $@ $?
+	$(CC) $(CCFLAGS) -c -o $@ $?
 json_exception.lo : json_exception.cc
-	$(CC) -fPIC -Wall -c -o $@ $?
+	$(CC) $(CCFLAGS) -c -o $@ $?
 $(BINTARGET) : $(LIBTARGET).a $(BINOBJ)
 	$(CC) -o $(BINTARGET) $(BINOBJ) $(LIBTARGET).a
 .c.o : 
-	$(CC) -Wall -c $<
+	$(CC) -Wall -O2 -c $<
 
 
 # make options

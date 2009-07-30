@@ -670,6 +670,7 @@ INSTALL_DATA
 CPP
 GREP
 EGREP
+SYSTEM
 LIBOBJS
 LTLIBOBJS'
 ac_subst_files=''
@@ -1251,6 +1252,11 @@ if test -n "$ac_init_help"; then
      short | recursive ) echo "Configuration of FULL-PACKAGE-NAME VERSION:";;
    esac
   cat <<\_ACEOF
+
+Optional Packages:
+  --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
+  --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
+ --with-system=mac or linux        select operation system
 
 Some influential environment variables:
   CXX         C++ compiler command
@@ -4285,6 +4291,31 @@ fi
 
 # Checks for library functions.
 
+# Check whether --with-system was given.
+if test "${with_system+set}" = set; then
+  withval=$with_system; WITH_SYSTEM="$withval"
+else
+  WITH_SYSTEM="linux"
+
+fi
+
+
+if test "$WITH_SYSTEM" == "linux"
+then
+  SYSTEM=$WITH_SYSTEM
+else
+  if test "$WITH_SYSTEM" == "mac" || "$WITH_SYSTEM" == "macos"
+  then
+    SYSTEM=$WITH_SYSTEM
+  else
+    { { echo "$as_me:$LINENO: error: !!!! --with-system is only 'macos' or 'linux' !!!!" >&5
+echo "$as_me: error: !!!! --with-system is only 'macos' or 'linux' !!!!" >&2;}
+   { (exit 1); exit 1; }; }
+  fi
+fi
+
+
+
 ac_config_files="$ac_config_files Makefile"
 
 cat >confcache <<\_ACEOF
@@ -4958,11 +4989,12 @@ INSTALL_DATA!$INSTALL_DATA$ac_delim
 CPP!$CPP$ac_delim
 GREP!$GREP$ac_delim
 EGREP!$EGREP$ac_delim
+SYSTEM!$SYSTEM$ac_delim
 LIBOBJS!$LIBOBJS$ac_delim
 LTLIBOBJS!$LTLIBOBJS$ac_delim
 _ACEOF
 
-  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 57; then
+  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 58; then
     break
   elif $ac_last_try; then
     { { echo "$as_me:$LINENO: error: could not make $CONFIG_STATUS" >&5

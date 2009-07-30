@@ -1254,7 +1254,7 @@ if test -n "$ac_init_help"; then
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
   --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
-  --with-charset=utf8 or euc       use utf8 or euc
+  --with-charset=utf8 or euc       select JA_JP encoding
 
 Some influential environment variables:
   CXX         C++ compiler command
@@ -6553,13 +6553,18 @@ then
 _ACEOF
 
 else
-  cat >>confdefs.h <<\_ACEOF
+  if test "$WITH_CHARSET" = "utf8"
+  then
+    cat >>confdefs.h <<\_ACEOF
 #define CHARSET_JA_JP_UTF8 1
 _ACEOF
 
+  else
+    { { echo "$as_me:$LINENO: error: !!!! --with-charset is only 'euc' or 'utf8' !!!!" >&5
+echo "$as_me: error: !!!! --with-charset is only 'euc' or 'utf8' !!!!" >&2;}
+   { (exit 1); exit 1; }; }
+  fi
 fi
-
-
 
 ac_config_files="$ac_config_files Makefile"
 

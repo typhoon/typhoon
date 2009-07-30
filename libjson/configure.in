@@ -24,6 +24,26 @@ AC_HEADER_STDBOOL
 AC_C_CONST
 
 # Checks for library functions.
+AC_ARG_WITH(
+  system,
+  [ --with-system=mac or linux        select operation system ],
+  [WITH_SYSTEM="$withval"],
+  [WITH_SYSTEM="linux"]
+)
+
+if test "$WITH_SYSTEM" == "linux"
+then
+  SYSTEM=$WITH_SYSTEM
+else
+  if test "$WITH_SYSTEM" == "mac" || "$WITH_SYSTEM" == "macos"
+  then
+    SYSTEM=$WITH_SYSTEM
+  else
+    AC_MSG_ERROR(!!!! --with-system is only 'macos' or 'linux' !!!!)
+  fi
+fi
+AC_SUBST(SYSTEM)
+
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

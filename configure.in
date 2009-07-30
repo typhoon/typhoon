@@ -39,7 +39,7 @@ AC_CHECK_FUNCS([getcwd getpagesize memmove memset mkdir munmap select socket])
 
 AC_ARG_WITH(
   charset,
-  [  --with-charset=utf8 or euc       use utf8 or euc ],
+  [  --with-charset=utf8 or euc       select JA_JP encoding ],
   [WITH_CHARSET="$withval"],
   [WITH_CHARSET="utf8"]
 )
@@ -48,10 +48,13 @@ if test "$WITH_CHARSET" = "euc"
 then
   AC_DEFINE(CHARSET_JA_JP_EUC)
 else
-  AC_DEFINE(CHARSET_JA_JP_UTF8)
+  if test "$WITH_CHARSET" = "utf8"
+  then
+    AC_DEFINE(CHARSET_JA_JP_UTF8)
+  else
+    AC_MSG_ERROR(!!!! --with-charset is only 'euc' or 'utf8' !!!!)
+  fi
 fi
-
-
 
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_SUBDIRS([libjson])
