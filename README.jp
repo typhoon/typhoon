@@ -11,7 +11,7 @@
 
 2. 使い方
 2-1. 忙しい人向け
-2-2. typhoon
+2-2. それなりに余裕がある人向け
 2-2-1. オプションの説明
 2-2-2. 初期化
 2-2-3. データ型記述
@@ -45,42 +45,84 @@
  
 
 1-1. 必要なソフトウェア
-形態素解析エンジンmecabが必要で辞書の文字コードはUTF-8/EUC限定です。
+形態素解析エンジンmecabが必要で辞書の文字コードはUTF8/EUC限定です。
 
 1-2. configure
 configureオプションは以下の通りです。
 
 ./configure
-  [--quiet]        ...   Restrict messages.
-  [--verbose]      ...   Display all messages.
-  [--prefix=DIR]   ...   Specify install directory.
-  [--exec-prefix=DIR]  ... Specify binary file directory.
-
+  [--quiet]        ...   メッセージ出力を抑制します。
+  [--verbose]      ...   メッセージを全部出力します。
+  [--prefix=DIR]   ...   プログラムのインストールディレクトリ（default：/usr/local）
+  [--exec-prefix=DIR]  ... ライブラリ（libjson）のインストールディレクトリ（default：/usr/local）
+  [--with-charset=(euc|utf8) ... 日本語の文字コードを指定します。(default：utf8）
+  [--with-system=(mac|linux) ... システム環境を指定します。(default： linux)
 
 2. 使い方
 2-1. 忙しい人向け
-
 # ./configure
 # make
 # make install
 # cd /usr/local/typhoon
-# ./typhoon -D data -F [file]
-# ./typhoon -D data -p [port] -d
+# ./bin/typhoon -D ./data -F [init_file]
+# ./bin/typhoon -D ./data -p [port] -d
 
-indexer script
+type definition sample(init_file)
 ------------------------------------
+{
+  "memory_size": "medium",
+  "columns":{
+    "id": "pkey",
+    "user":"string",
+    "description":"fulltext",
+    "gender": "bool"
+  } 
+}
 
-
-
-searcher script
+indexer script sample
 ------------------------------------
 require "net/http"
 require "json"
-def searcher(host, port, words = [])
-  req = {"search" => true, "conditions" => [], "limit" => limit, "offset" => offset}
-  words.each do |w|
-    req["conditions"].push(["content", "equal", w])
-  end
+
+def indexer_batch(host, port, &block)
+  s = timeout(10) { |i| TCPSocket.open(host, port)}
+  s.write("BEGIN\n")
+  #  
+  #  Your own generator code
+  #    request_obj = {"command" => "search", "data" => {"key" => "value", ...}}
+  #    s.write("{request_obj.to_json}.\n)
+  #
+  block.call(s)
+  s.write("END\n")
+   
+  result = s.read
+  s.close
+
+  return JSON.parse(result)
+rescue
+  return nil
+end
+
+def indexer_single(host, port, query)
+  s = timeout(10) { |i| TCPSocket.open(host, port)}
+  s.write("#{query.to_json}\r\n")
+  result = s.read
+  s.close
+
+  return JSON.parse(result)
+rescue
+  return nil
+end
+
+
+
+searcher script sample
+------------------------------------
+def searcher(host, port, options)
+  limit = (options[:limit] || 10).to_i
+  offset = (options[:offset] || 0).to_i
+  conditions = (options[:conditions] || [])
+  req = {"command" => "search", "conditions" => conditions, "limit" => limit, "offset" => offset}
 
   begin
     s = timeout(10) { |i| TCPSocket.open(host, port)}
@@ -96,7 +138,8 @@ end
 
 
 
-2-2. typhoon
+
+2-2. それなりに余裕がある人向け
 2-2-1. 実行方法とオプション
  $ #{INSTALL_PATH}/typhoon [-F init_file] [-D data_dir] [-L log_file] [-p port] [-P pid_file] [-d] 
 
@@ -108,34 +151,36 @@ end
   -p: 起動ポート（default: 9999）
   -d: デーモンとして起動する。指定しなければターミナルとの接続は残ります。
 
+
 2-2-2. 初期化
-初期化は初期化ファイルを使って行います。初期化ファイルのフォーマットは以下の通りです。
+検索エンジンの設定は初期化ファイルを使って行います。初期化ファイルのフォーマットは以下の通りです。
 
-1: memory_size(10-65535、省略不可)
-2: datatype(JSON、省略不可)
-3: --（区切り、省略不可）
-4: initial data(１行１クエリで何行、省略可）
-5: --（区切り、省略可）
-6: search query（１行１クエリで何行でも、省略可）
+1: settings(JSON、省略不可、複数行に分けても可)
+2: --（区切り、省略可）
+3: initial data(１行１クエリで何行、省略可）
+4: --（区切り、省略可）
+5: search query（１行１クエリで何行でも、省略可）
 
-各クエリはJSON形式で記述される。
+各クエリはJSON形式で記述します。
 
-memory_size: memory_size*64K+数MB程度のメモリを消費する。
-datatype: データ型を記述します。フォーマットは後述します。
-initial data: 初期データの投入とベンチマークを行います。フォーマットは後述します。
-search query:初期データを投入後、検索を実行します。確認用に使います。フォーマットは後述します。
+settings: 検索エンジンの設定です。フォーマットは2-2-3で説明します。
+initial data: 初期データの投入とベンチマークを行います。フォーマットは2-2-5で説明します。
+search query:初期データを投入後、検索を実行します。投入したデータの確認用に使います。フォーマットは2-2-6で説明します。
 
-2-2-3. データ型記述
-JSONで記述する。
 
-{"columns":{"key":"type(,noindex)", "key":"type(,noindex)"...}, "sortkey":["key(,asc|desc)", "key(,asc|desc)",...]}
+2-2-3. 検索エンジン設定
+JSONで記述します。
 
-制約は以下の通り
-    * key: 255byte以内、\t, \0は利用できません。
-    * type: 以下が利用できます。
+{"memory_size":1000, "columns":{"key":"type(,noindex)", "key":"type(,noindex)"...}, "sortkey":["key(,asc|desc)", "key(,asc|desc)",...]}
 
+    * memory_size: 使用するメモリ。memory_size*64K+数MB程度のメモリを消費する。
+    * columns:     検索エンジン内で定義される属性
+    * key:         属性名
+    * type:        属性の持つ型。以下が利用できます。
+
+（利用できる型）
 識別子               型            インデックス      ソートキー     最大値              備考
-pkey                 integer(32)   ○                 ○              2^32-1              レコード識別子、重複定義不可
+pkey                 integer(32)   ×                 ○              2^32-1              レコード識別子、重複定義不可
 string               string        ○                 ×              1000byte            前方一致のみ可能
 fulltext             string        ○                 ×              10000words          全文検索用
 bool(boolean) 	     integer(1)    ○                 ○              1                   1bit / true(1) or false(0)
@@ -143,29 +188,36 @@ tinyint(int8) 	     integer(8)    ○                 ○              255      
 smallint(int16)      integer(16)   ○                 ○              65535               16bit
 integer(int32/int)   integer(32)   ○                 ○              2^32-1              32bit
 
+
+各フィールドの制約条件は以下の通り
+    * memory_size: 10-65535/small/large/huge (default: large)
+    * key: 255byte以内、\t, \0は利用できません。
     * sortkey: 検索結果のソートに利用できる属性を指定します。integer/smallint/tinyint/boolの型をもつデータにしか指定できません。
                また、sortkeyに指定される属性のbit数は合計128bit以内です（integerであれば4属性まで）
-               sortkeyは指定された順でデフォルトソート順として利用されます。デフォルトソート順での表示は高速です。
+               sortkeyは指定された順でデフォルトソート順として利用されます。デフォルトソート順での検索処理は高速です。
     * noindex: noindexで指定された要素は検索属性として利用しないのでインデックスを行いません。
                ソートのみに利用する属性を外すことでインデックス作成処理が早くなります。
     * asc/desc: インデックスの並び順を制御する。ascは昇順、descは降順。
 
 
 2-2-4. 未定義属性
+フォーマットに定義されていない属性でもインデックスに追加、検索することができます。
+これらはstring型の属性名-属性値のペアとして扱われる。
+key-valueの区切り文字としてTABを利用しているので、属性名、属性値にTABは含まないようにしてください。
 
-フォーマットに定義されていない属性をインデックスに追加、検索することが可能である。これらはstring型の属性名-属性値のkey- valueペアとして扱われる。key-valueの区切り文字としてTABを利用しているので、属性名、属性値にはTABを含まないほうが良い。
+また、未定義属性で検索結果を並び替えることはできません。
 
-また、フォーマットに定義されていない属性で検索結果を並び替えることはできない。
-データ定義クエリの例
-
-{"columns":
+（データ定義クエリの例）
+{
+ "memory_size": 1000, 
+ "columns":
    {"common":"string", "name":"fulltext", "id":"pkey", "post1":"smallint", "post2":"smallint", "co_id":"integer"},
-   "sortkeys":["post1","post2","id"]}
+   "sortkeys":["post1","post2","id"]
+}
 
 
 2-2-5. インデックス追加／更新／削除クエリ
 インデックスの追加／更新／削除はすべて以下のクエリで行います。
-
 {
   "command": "index",
   "data":{"key":"value", "key":["value", "value", "value"...], ...}
@@ -196,7 +248,7 @@ integer(int32/int)   integer(32)   ○                 ○              2^32-1  
 conditionsには次のパターンでの指定が可能です。
 
 A. ["key", "op", "value1"(, "value2")]
-単一条件で検索を行います。
+単一条件で検索を実行。
 keyは属性名、opはequal（完全一致）/prefix（前方一致）/between（範囲）の3つが指定できます。
 value1は検索する値を指定します。範囲検索の場合はvalue1に最小値、value2に最大値を指定します。
 また、「fulltext型属性の完全一致検索」が指定された場合のみ、検索キーワードの品詞分解を行い、
@@ -204,11 +256,11 @@ value1は検索する値を指定します。範囲検索の場合はvalue1に�
 
 
 B. [["key", "op", "value1"(, "value2")], ["key", "op", "value"], ...]
-複数条件でのAND検索を行う。
+複数条件でのAND検索を実行。
 
 
 C. [[["key", "op", "value1"(, "value2")], ...], [...], ...]
-複数条件でのAND/OR検索を行う。1階層目の配列がAND、2階層目の配列がOR条件として処理される。
+複数条件でのAND/OR検索を実行。1階層目の配列がAND、2階層目の配列がOR条件として処理される。
 
 * ３階層以上の検索クエリはサポートしていません。
 
@@ -218,10 +270,12 @@ C. [[["key", "op", "value1"(, "value2")], ...], [...], ...]
  2009/08/01: ver0.1リリース
 
 3-2. 今後の更新予定
- * インデックス分散処理
+ * Railsプラグイン
+ * MeCabがなくてもうごくようにする
  * key-value storeとしての機能
+ * インデックス分散処理
 
 3-3. バグ、要望などの報告
  下記URLまで報告してください。 
- 
+ http://github.com/typhoon/typhoon/issues 
 

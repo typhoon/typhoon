@@ -32,7 +32,8 @@ public:
   bool load_conf();
   bool save_conf();
   bool directory_check();
-  bool import_attrs(const char*);
+  bool import_attrs_from_json(JsonValue*);
+  bool import_attrs_from_string(const char*);
 
   AppConfig();
   ~AppConfig() {}
