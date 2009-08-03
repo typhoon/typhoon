@@ -124,19 +124,22 @@ bool AppConfig::directory_check() {
 }
 
 
-bool AppConfig::import_attrs(const char* init_str) {
-  attrs.clear();
- 
-  JsonValue* datatype_val = JsonImport::json_import(init_str);
-
-  if(!datatype_val) {
+bool AppConfig::import_attrs_from_string(const char* str) {
+  JsonValue* settings_val = JsonImport::json_import(str);
+  if(!settings_val) {
     std::cerr << "[ERROR] invalid JSON format.\n";
     return false;
   }
-  if(datatype_val->get_value_type() != json_object) {
-    std::cerr << "[ERROR] toplevel must be object type.\n";
+  if(settings_val->get_value_type() != json_object) {
+    std::cerr << "[ERROR] settings must be object type.\n";
     return false;
   }
+
+  return import_attrs_from_json(settings_val);
+}
+
+bool AppConfig::import_attrs_from_json(JsonValue* datatype_val) {
+  attrs.clear();
 
   JsonValue* column_val = datatype_val->get_value_by_tag("columns");
   JsonValue* sort_val = datatype_val->get_value_by_tag("sortkeys");
@@ -294,7 +297,7 @@ bool AppConfig::test() {
 
   s = "{\"columns\":{\"id\": \"pkey\"}}";
   std::cout << s << "\n";
-  if(!import_attrs(s.c_str())) return false;
+  if(!import_attrs_from_string(s.c_str())) return false;
   it = attrs.find("id");
   if(it==attrs.end()) return false;
   d = it->second;
@@ -304,7 +307,7 @@ bool AppConfig::test() {
 
   s = "{\"columns\":{\"id\": \"pkey,index\"}}";
   std::cout << s << "\n";
-  if(!import_attrs(s.c_str())) return false;
+  if(!import_attrs_from_string(s.c_str())) return false;
   it = attrs.find("id");
   if(it==attrs.end()) return false;
   d = it->second;
@@ -314,7 +317,7 @@ bool AppConfig::test() {
 
   s = "{\"columns\":{\"id\":\"pkey\", \"name\":\"string\"}}";
   std::cout << s << "\n";
-  if(!import_attrs(s.c_str())) return false;
+  if(!import_attrs_from_string(s.c_str())) return false;
   it = attrs.find("id");
   if(it==attrs.end()) return false;
   d = it->second;
@@ -331,7 +334,7 @@ bool AppConfig::test() {
 
   s = "{\"columns\":{\"id\":\"pkey\", \"name\":\"string\", \"content\":\"fulltext\"}}";
   std::cout << s << "\n";
-  if(!import_attrs(s.c_str())) return false;
+  if(!import_attrs_from_string(s.c_str())) return false;
   it = attrs.find("content");
   if(it==attrs.end()) return false;
   d = it->second;
@@ -341,7 +344,7 @@ bool AppConfig::test() {
 
   s = "{\"columns\":{\"id\":\"pkey\", \"name\":\"string\", \"active_flag\":\"bool,noindex\"}, \"sortkeys\":[\"active_flag\"]}";
   std::cout << s << "\n";
-  if(!import_attrs(s.c_str())) return false;
+  if(!import_attrs_from_string(s.c_str())) return false;
   it = attrs.find("active_flag");
   if(it==attrs.end()) return false;
   d = it->second;
@@ -352,7 +355,7 @@ bool AppConfig::test() {
 
   s = "{\"columns\":{\"id\":\"pkey\", \"name\":\"string\", \"active_flag\":\"bool\", \"gender\":\"bool\", \"age\":\"tinyint\"}, \"sortkeys\":[\"active_flag\", \"gender\", \"age\"]}";
   std::cout << s << "\n";
-  if(!import_attrs(s.c_str())) return false;
+  if(!import_attrs_from_string(s.c_str())) return false;
   it = attrs.find("gender");
   if(it==attrs.end()) return false;
   d = it->second;
@@ -371,7 +374,7 @@ bool AppConfig::test() {
 
   s = "{\"columns\":{\"id\":\"pkey\", \"name\":\"string\", \"data1\":\"integer\", \"data2\":\"integer\", \"data3\":\"integer\", \"data4\":\"smallint\", \"data5\":\"smallint\"}, \"sortkeys\":[\"data1\", \"data2\", \"data3\", \"data4\", \"data5,desc\"]}";
   std::cout << s << "\n";
-  if(!import_attrs(s.c_str())) return false;
+  if(!import_attrs_from_string(s.c_str())) return false;
   it = attrs.find("data4");
   if(it==attrs.end()) return false;
   d = it->second;
@@ -389,14 +392,14 @@ bool AppConfig::test() {
   
   s = "{\"columns\":{\"id\":\"pkey\", \"name\":\"string\", \"data1\":\"integer\", \"data2\":\"integer\", \"data3\":\"integer\", \"data4\":\"integer\", \"extend\":\"boolean\"}, \"sortkeys\":[\"data1\", \"data2\", \"data3\", \"data4\", \"extend\"]}";
   std::cout << s << "\n";
-  if(import_attrs(s.c_str())) return false; // too many sort value
+  if(import_attrs_from_string(s.c_str())) return false; // too many sort value
 
 
   std::cout << "error pattern test\n";
   s = "{dsafsasffas"; // incomplete JSON
-  if(import_attrs(s.c_str())) return false;
+  if(import_attrs_from_string(s.c_str())) return false;
   s = "{\"name\":\"string\"}"; // not exists pkey
-  if(import_attrs(s.c_str())) return false;
+  if(import_attrs_from_string(s.c_str())) return false;
 
  
   return true;

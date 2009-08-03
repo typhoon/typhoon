@@ -21,7 +21,7 @@ bool get_options(int argc, char* const argv[]) {
   // initialize
   char* path_buf = new char[MAX_PATH_LENGTH+1];
   getcwd(path_buf, MAX_PATH_LENGTH);
-  cfg.path = std::string(path_buf) + "/data";
+  cfg.path = "/tmp/typhoontest";
   delete[] path_buf;
 
   cfg.test_mode = "";
@@ -48,7 +48,8 @@ void test() {
   WORD_SET modules = split(cfg.test_mode, ",");
 
   for(unsigned int i=0; i<modules.size(); i++) {
-    std::string work_path = "./testdata";
+    std::string work_path = cfg.path;
+    FileAccess::create_directory(work_path);
 
     if(modules[i] == "conf" || modules[i] == "all") {
       std::cout << ">>>>configuration test...\n";
@@ -196,7 +197,7 @@ void test() {
       std::cout << ">>>>checking indexer application...\n";
       shm.init(getpagesize()*4, 100);
       data.init(work_path, &shm);
-      cfg.import_attrs("{\"columns\":{\"id\":\"pkey\", \"content\":\"fulltext\", \"title\":\"fulltext\", \"age\":\"integer\", \"rank\":\"integer,noindex\"}, \"sortkeys\":[\"rank,desc\"]}");
+      cfg.import_attrs_from_string("{\"columns\":{\"id\":\"pkey\", \"content\":\"fulltext\", \"title\":\"fulltext\", \"age\":\"integer\", \"rank\":\"integer,noindex\"}, \"sortkeys\":[\"rank,desc\"]}");
 
       Indexer indexer(work_path, "", &cfg.attrs, &shm, &morph, &common_buf);
       if(!indexer.test()) {
@@ -208,7 +209,7 @@ void test() {
     if(modules[i] == "searcher" || modules[i] == "all") {
       std::cout << ">>>>cheking searcher application...\n";
       shm.init(getpagesize()*4, 100);
-      cfg.import_attrs("{\"columns\":{\"id\":\"pkey\", \"content\":\"fulltext\", \"title\":\"string\", \"age\":\"integer\", \"rank\":\"integer,noindex\"}, \"sortkeys\":[\"rank,desc\"]}"); 
+      cfg.import_attrs_from_string("{\"columns\":{\"id\":\"pkey\", \"content\":\"fulltext\", \"title\":\"string\", \"age\":\"integer\", \"rank\":\"integer,noindex\"}, \"sortkeys\":[\"rank,desc\"]}"); 
 
       // setup testdata
       Indexer indexer(work_path, "", &cfg.attrs, &shm, &morph, &common_buf);

@@ -109,7 +109,7 @@ std::string Server :: socket_read(int read_socket) {
       req_pos = 0;
       if(multiline_mode) {
         if(strcmp(req, "END") == 0) { // multiline end
-          response = (*app_func)(NULL, mutex, INDEX_FLAG_FIN);
+          response = (*app_func)("{\"command\":\"index\"}", mutex, INDEX_FLAG_FIN);
           break;
         } else {  // multiline continue
           (*app_func)(req, mutex, INDEX_FLAG_CONT);

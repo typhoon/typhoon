@@ -1337,58 +1337,58 @@ bool ReverseIndexController::test() {
 
 
   std::cout << "insert and remove test...\n";
-for(unsigned int dcnt = 1; dcnt < 50; dcnt++) {
-for(unsigned int pcnt = 1; pcnt < 30; pcnt++) {
-  std::cout << dcnt << "," << pcnt << "\n";
-  g_debug = false;
+  for(unsigned int dcnt = 1; dcnt < 50; dcnt++) {
+    std::cout << "loop: " << dcnt << "\n";
+    for(unsigned int pcnt = 1; pcnt < 30; pcnt++) {
+      g_debug = false;
 
-  ins.delete_flag = false;
-  for(unsigned int i=0; i<dcnt; i++) {
-    ins.doc = docs[i];
+      ins.delete_flag = false;
+      for(unsigned int i=0; i<dcnt; i++) {
+        ins.doc = docs[i];
 
-    inserts.clear();
-    for(unsigned int j=0; j<pcnt; j++) {
-      ins.phrase =phrases[j];
-      ins.phrase.pos = j / (1+pcnt/128);
-      inserts.push_back(ins);
+        inserts.clear();
+        for(unsigned int j=0; j<pcnt; j++) {
+          ins.phrase =phrases[j];
+          ins.phrase.pos = j / (1+pcnt/128);
+          inserts.push_back(ins);
+        }
+        sort(inserts.begin(), inserts.end(), InsertReverseIndexComp());
+        insert(inserts);
+      }
+
+      for(unsigned int i=0; i<pcnt; i++) {
+        res.clear();
+        find(phrases[i].data.value, res);
+        if(res.size() != dcnt) {
+          return false;
+        }
+      }
+
+      ins.delete_flag = true;
+      for(unsigned int i=0; i<dcnt; i++) {
+        ins.doc = docs[i];
+
+        inserts.clear();
+        for(unsigned int j=0; j<pcnt; j++) {
+          ins.phrase = phrases[j];
+          ins.phrase.pos = j / (1+pcnt/128);
+          inserts.push_back(ins);
+        }
+        sort(inserts.begin(), inserts.end(), InsertReverseIndexComp());
+        insert(inserts);
+      }
+
+
+      for(unsigned int i=0; i<pcnt; i++) {
+        res.clear();
+        find(phrases[i].data.value, res);
+        if(res.size() != 0) {
+          dump();
+          return false;
+        }
+      }
     }
-    sort(inserts.begin(), inserts.end(), InsertReverseIndexComp());
-    insert(inserts);
   }
-
-  for(unsigned int i=0; i<pcnt; i++) {
-    res.clear();
-    find(phrases[i].data.value, res);
-    if(res.size() != dcnt) {
-      return false;
-    }
-  }
-
-  ins.delete_flag = true;
-  for(unsigned int i=0; i<dcnt; i++) {
-    ins.doc = docs[i];
-
-    inserts.clear();
-    for(unsigned int j=0; j<pcnt; j++) {
-      ins.phrase = phrases[j];
-      ins.phrase.pos = j / (1+pcnt/128);
-      inserts.push_back(ins);
-    }
-    sort(inserts.begin(), inserts.end(), InsertReverseIndexComp());
-    insert(inserts);
-  }
-
-
-  for(unsigned int i=0; i<pcnt; i++) {
-    res.clear();
-    find(phrases[i].data.value, res);
-    if(res.size() != 0) {
-      dump();
-      return false;
-    }
-  }
-}
-}
 
   std::cout << "invalid remove test...\n";
   inserts.clear();

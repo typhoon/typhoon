@@ -33,6 +33,7 @@ bool get_options(int argc, char* const argv[]) {
   cfg.log_file = "";
   cfg.data_file = "";
   cfg.daemon = false;
+  cfg.block_size = MEDIUM_MEMORY_BLOCK;
 
   delete[] path_buf;
   cfg.port = 9999;
@@ -41,7 +42,7 @@ bool get_options(int argc, char* const argv[]) {
   // option setting
   char optchar;
   opterr = 0;
-  while((optchar=getopt(argc, argv, "dD:L:p:P::F:o:l:w:a:v")) != -1) {
+  while((optchar=getopt(argc, argv, "dD:L:p:P:F:o:l:w:a:v")) != -1) {
     if(optchar == 'd') {
       cfg.daemon = true;
       if(cfg.log_file == "") cfg.log_file = std::string(path_buf) + "/log/typhoon.log";
@@ -65,6 +66,7 @@ bool get_options(int argc, char* const argv[]) {
       return false;
     }
   }
+
   return true;
 }
 
@@ -74,8 +76,8 @@ bool get_options(int argc, char* const argv[]) {
 std::string app_request_handler(const char* request_str, pthread_mutex_t* mutex, int flags) {
   JsonValue* request = request_str ? JsonImport::json_import(request_str) : NULL;
   JsonValue* reply = new JsonValue(json_object);
-  JsonValue* flag_val = request ? request->get_value_by_tag("command") : NULL;
-  std::string command = (flag_val && flag_val->get_value_type()==json_string) ? flag_val->get_string_value() : "search";
+  JsonValue* cmd_val = request ? request->get_value_by_tag("command") : NULL;
+  std::string command = (cmd_val && cmd_val->get_value_type()==json_string) ? cmd_val->get_string_value() : "";
 
   if(command=="search") { 
     do_searcher_request(request, reply, mutex, flags);
@@ -85,8 +87,9 @@ std::string app_request_handler(const char* request_str, pthread_mutex_t* mutex,
     do_indexer_request(data_val, reply, mutex, flags);
     shm.next_generation();
   } else {
+    std::string msg = "Invalid command: " + command;
     reply->add_to_object("error", new JsonValue(json_true));
-    reply->add_to_object("message", new JsonValue("Invalid command"));
+    reply->add_to_object("message", new JsonValue(msg));
   } 
 
   std::string return_str = JsonExport::json_export(reply) + "\n";
@@ -113,7 +116,6 @@ void do_indexer_request(JsonValue* request, JsonValue* reply, pthread_mutex_t* m
      if(request) {
        cache.push_back(idx);
      }
-
      if((cache.size() > 0 && flags == INDEX_FLAG_FIN) || cache.size() > MAX_DOCUMENT_CACHE) {
        i->proc_remove_indexes(cache);
        i->proc_insert_documents(cache);
@@ -152,7 +154,6 @@ void do_searcher_request(JsonValue* request, JsonValue* reply, pthread_mutex_t* 
   Searcher* s = new Searcher(cfg.path, cfg.log_file, &cfg.attrs, &shm);
 
   try {
-
     if(mutex) pthread_mutex_lock(mutex+MUTEX_PARSER);
     if(!s->parse_request(request, cfg)) throw AppException(EX_APP_SEARCHER, "failed to parse request");
     if(mutex) pthread_mutex_unlock(mutex+MUTEX_PARSER);
@@ -167,11 +168,13 @@ void do_searcher_request(JsonValue* request, JsonValue* reply, pthread_mutex_t* 
     }
     reply->add_to_object("error", new JsonValue(json_null));
   } catch(AppException e) {
+    if(mutex) pthread_mutex_unlock(mutex+MUTEX_PARSER);
     write_log(LOG_LEVEL_ERROR, e.what(), cfg.log_file);
     reply->add_to_object("count", new JsonValue(0));
     reply->add_to_object("result", new JsonValue(json_array));
     reply->add_to_object("error", new JsonValue(e.what().c_str()));
   } catch(JsonException e) {
+    if(mutex) pthread_mutex_unlock(mutex+MUTEX_PARSER);
     reply->add_to_object("count", new JsonValue(0));
     reply->add_to_object("result", new JsonValue(json_array));
     reply->add_to_object("error", new JsonValue("JSON access error"));
@@ -327,11 +330,15 @@ int main(int argc, char* const argv[]) {
     write_log(LOG_LEVEL_INFO, "starting daemon...", "");
     int pid = daemonize();
     char pidstr[30];
-    sprintf(pidstr, "PID is %10d", pid);
+    sprintf(pidstr, "PID is %d", pid);
     write_log(LOG_LEVEL_INFO, pidstr, cfg.log_file);
+
     if(cfg.pid_file != "") {
       std::ofstream pid_ofs(cfg.pid_file.c_str());
-      if(!pid_ofs) write_log(LOG_LEVEL_ERROR, "PID file open failed: " + cfg.pid_file, cfg.log_file);
+      if(!pid_ofs) {
+        std::cout << "PID file open error: " << cfg.pid_file << "\n";
+        write_log(LOG_LEVEL_ERROR, "PID file open failed: " + cfg.pid_file, cfg.log_file);
+      }
       pid_ofs << pid;
       pid_ofs.close();
     }
@@ -358,29 +365,51 @@ bool format() {
   std::ifstream ifs(cfg.data_file.c_str());
 
   std::cout << "[setup and initializing]\n";
-  if(!getline(ifs, line)) return false;
-
-  if(line == "minimum") cfg.block_size = MINIMUM_MEMORY_BLOCK;
-  else if(line == "small") cfg.block_size = SMALL_MEMORY_BLOCK;
-  else if(line == "medium") cfg.block_size = MEDIUM_MEMORY_BLOCK;
-  else if(line == "large") cfg.block_size = LARGE_MEMORY_BLOCK;
-  else if(line == "huge") cfg.block_size = HUGE_MEMORY_BLOCK;
-  else {
-    cfg.block_size = atoi(line.c_str());
-    if(cfg.block_size < MIN_MEMORY_BLOCK || cfg.block_size > MAX_MEMORY_BLOCK) {
-      write_log(LOG_LEVEL_FATAL, "invalid memory range");
-      return false; 
-    }
+  std::string settings;
+  while(getline(ifs, line)) {
+    if(line == "--") break;
+    settings = settings + line;
   }
 
-  if(!getline(ifs, line)) return false;
-  if(!cfg.import_attrs(line.c_str())) return false;
+  JsonValue* settings_val = JsonImport::json_import(settings.c_str());  
+  if(!settings_val) {
+    std::cerr << "[ERROR] invalid JSON format.\n";
+    return false;
+  }
+  if(settings_val->get_value_type() != json_object) {
+    std::cerr << "[ERROR] settings must be object type.\n";
+    return false;
+  }
+  cfg.import_attrs_from_json(settings_val);
   cfg.dump();
   std::cout << "\n\n\n";
 
-  if(!getline(ifs, line)) return false;
-  if(line != "--") return false;
-
+  JsonValue* memsize_val = settings_val->get_value_by_tag("memory_size");
+  if(memsize_val) {
+    if(memsize_val->get_value_type() == json_string) {
+      std::string s = memsize_val->get_string_value();
+      if(s == "minimum") cfg.block_size = MINIMUM_MEMORY_BLOCK;
+      else if(s == "small") cfg.block_size = SMALL_MEMORY_BLOCK;
+      else if(s == "medium") cfg.block_size = MEDIUM_MEMORY_BLOCK;
+      else if(s == "large") cfg.block_size = LARGE_MEMORY_BLOCK;
+      else if(s == "huge") cfg.block_size = HUGE_MEMORY_BLOCK;
+      else {
+        std::cerr << "[ERROR] memory_size must be specified by [minimum/small/medium/large/huge].\n";
+        return false; 
+      }
+    }
+    else if(memsize_val->get_value_type() == json_integer) {
+      cfg.block_size = memsize_val->get_integer_value();
+      if(cfg.block_size < MIN_MEMORY_BLOCK || cfg.block_size > MAX_MEMORY_BLOCK) {
+        std::cerr << "[ERROR] memory_size is between 10 and 65535.\n";
+        return false; 
+      }
+    }
+    else {
+      std::cerr << "[ERROR] memory_size must be integer or string.\n";
+      return false; 
+    }
+  }
   shm.set_path(cfg.path);
   shm.init(cfg.page_size, cfg.block_size);
   
@@ -412,19 +441,20 @@ bool format() {
     total = total + clock() - start;
     query_count++;
   }
-  app_request_handler(NULL, NULL, INDEX_FLAG_FIN);
 
-  std::cout << "------------------------\n";
-  std::cout << "total query: " << query_count << "\n";
-  std::cout << "total time: " << (total*1.0)/CLOCKS_PER_SEC << "\n";
-  if(total_c1 != 0) std::cout << "  bench1: " << (total_c1*1.0)/CLOCKS_PER_SEC  << "\n"; 
-  if(total_c2 != 0) std::cout << "  bench2: " << (total_c2*1.0)/CLOCKS_PER_SEC  << "\n"; 
-  if(total_c3 != 0) std::cout << "  bench3: " << (total_c3*1.0)/CLOCKS_PER_SEC  << "\n"; 
-  std::cout << "total bench count 1: " << shm.x1 << "\n";
-  std::cout << "total bench count 2: " << shm.x2 << "\n";
-  std::cout << "\n\n\n";
+  if(query_count > 0) {
+    app_request_handler(NULL, NULL, INDEX_FLAG_FIN);
 
-
+    std::cout << "------------------------\n";
+    std::cout << "total query: " << query_count << "\n";
+    std::cout << "total time: " << (total*1.0)/CLOCKS_PER_SEC << "\n";
+    if(total_c1 != 0) std::cout << "  bench1: " << (total_c1*1.0)/CLOCKS_PER_SEC  << "\n"; 
+    if(total_c2 != 0) std::cout << "  bench2: " << (total_c2*1.0)/CLOCKS_PER_SEC  << "\n"; 
+    if(total_c3 != 0) std::cout << "  bench3: " << (total_c3*1.0)/CLOCKS_PER_SEC  << "\n"; 
+    std::cout << "total bench count 1: " << shm.x1 << "\n";
+    std::cout << "total bench count 2: " << shm.x2 << "\n";
+    std::cout << "\n\n\n";
+  }
 
   std::cout << "[search test and benchmark]\n";
   total = total_c1 = total_c2 = total_c3 = 0;
@@ -444,15 +474,17 @@ bool format() {
     query_count++;
   }
 
-  std::cout << "------------------------\n";
-  std::cout << "total_query: " << query_count << "\n";
-  std::cout << "total time: " << (total*1.0)/CLOCKS_PER_SEC << "\n";
-  if(total_c1 != 0) std::cout << "  bench1: " << (total_c1*1.0)/CLOCKS_PER_SEC  << "\n"; 
-  if(total_c2 != 0) std::cout << "  bench2: " << (total_c2*1.0)/CLOCKS_PER_SEC  << "\n"; 
-  if(total_c3 != 0) std::cout << "  bench3: " << (total_c3*1.0)/CLOCKS_PER_SEC  << "\n"; 
-  std::cout << "total bench count 1: " << shm.x1 << "\n";
-  std::cout << "total bench count 2: " << shm.x2 << "\n";
-  std::cout << "\n\n\n";
+  if(query_count > 0) {
+    std::cout << "------------------------\n";
+    std::cout << "total_query: " << query_count << "\n";
+    std::cout << "total time: " << (total*1.0)/CLOCKS_PER_SEC << "\n";
+    if(total_c1 != 0) std::cout << "  bench1: " << (total_c1*1.0)/CLOCKS_PER_SEC  << "\n"; 
+    if(total_c2 != 0) std::cout << "  bench2: " << (total_c2*1.0)/CLOCKS_PER_SEC  << "\n"; 
+    if(total_c3 != 0) std::cout << "  bench3: " << (total_c3*1.0)/CLOCKS_PER_SEC  << "\n"; 
+    std::cout << "total bench count 1: " << shm.x1 << "\n";
+    std::cout << "total bench count 2: " << shm.x2 << "\n";
+    std::cout << "\n\n\n";
+  }
 
   cfg.save_conf();
   return true;
